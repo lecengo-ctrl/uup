@@ -11,6 +11,13 @@ export function Admin() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'apps' | 'users'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const [appToOffline, setAppToOffline] = useState<{id: string, title: string} | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   if (!currentUser || currentUser.role !== 'admin') {
     return (
@@ -35,7 +42,40 @@ export function Admin() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8 relative">
+      {toastMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+          {toastMessage}
+        </div>
+      )}
+      
+      {appToOffline && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">确认下架</h3>
+            <p className="text-slate-600 mb-6">确定要下架应用 "{appToOffline.title}" 吗？下架后用户将无法访问。</p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setAppToOffline(null)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button 
+                onClick={() => {
+                  handleStatusChange(appToOffline.id, 'offline');
+                  showToast('应用已下架');
+                  setAppToOffline(null);
+                }}
+                className="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors"
+              >
+                确认下架
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
           <ShieldAlert className="w-8 h-8 text-indigo-600" />
@@ -148,7 +188,7 @@ export function Admin() {
                       </td>
                       <td className="px-6 py-4 text-slate-500">
                         <div>PV: {app.views}</div>
-                        <div>Likes: {app.likes}</div>
+                        <div>认可: {(app.recognitions?.creative || 0) + (app.recognitions?.professional || 0) + (app.recognitions?.beautiful || 0)}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn(
@@ -182,9 +222,7 @@ export function Admin() {
                           )}
                           {app.status !== 'offline' && (
                             <button 
-                              onClick={() => {
-                                if(window.confirm('确定要下架该应用吗？')) handleStatusChange(app.id, 'offline');
-                              }}
+                              onClick={() => setAppToOffline({ id: app.id, title: app.title })}
                               className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                               title="违规下架"
                             >

@@ -1,253 +1,364 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../store';
-import { Upload as UploadIcon, FileCode, CheckCircle2, Loader2, Link as LinkIcon, Code } from 'lucide-react';
+import { Upload as UploadIcon, FileCode, CheckCircle, AlertCircle, Link as LinkIcon, Image as ImageIcon, Code, Tag, Lock, Unlock, Download, DollarSign, Edit } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const CATEGORIES = ['AI生成', '小游戏', '效率工具', '趣味测试', '个人简历', '其他'];
+const PRESET_TAGS = [
+  '效率工具', '小游戏', '简历模板', '表白页', 'AI 工具', '毕业设计', '办公助手',
+  '开源免费', '付费商用', '个人自用',
+  '创意 idea', '行业专业', '高颜值设计', '开箱即用'
+];
 
 export function Upload() {
-  const { currentUser, addApp } = useStore();
+  const { id } = useParams<{ id: string }>();
+  const { currentUser, apps, addApp, updateApp } = useStore();
   const navigate = useNavigate();
+  const isEditMode = !!id;
+  const existingApp = isEditMode ? apps.find(a => a.id === id) : null;
+
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'code'>('file');
+  const [file, setFile] = useState<File | null>(null);
+  const [htmlCode, setHtmlCode] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
   
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [uploadMethod, setUploadMethod] = useState<'file' | 'paste'>('file');
-  const [fileContent, setFileContent] = useState<string>('');
-  
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    tags: [] as string[],
-    coverUrl: ''
-  });
-  
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deployedId, setDeployedId] = useState<string | null>(null);
+  // New fields
+  const [tags, setTags] = useState<string[]>([]);
+  const [customTag, setCustomTag] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [allowDownload, setAllowDownload] = useState(false);
+  const [price, setPrice] = useState<number>(0);
+
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (step === 2 && !formData.coverUrl) {
-      setFormData(prev => ({
-        ...prev,
-        coverUrl: `https://picsum.photos/seed/${Date.now()}/400/300`
-      }));
+    if (!currentUser) {
+      navigate('/');
+    } else if (isEditMode && existingApp) {
+      if (existingApp.authorId !== currentUser.id) {
+        navigate('/'); // Not the author
+        return;
+      }
+      setUploadMethod('code');
+      setHtmlCode(existingApp.htmlContent || '');
+      setTitle(existingApp.title);
+      setDescription(existingApp.description);
+      setCoverUrl(existingApp.coverUrl);
+      setTags(existingApp.tags || []);
+      setVisibility(existingApp.visibility || 'public');
+      setAllowDownload(existingApp.allowDownload || false);
+      setPrice(existingApp.price || 0);
     }
-  }, [step]);
+  }, [currentUser, navigate, isEditMode, existingApp]);
 
-  // Redirect if not logged in
-  if (!currentUser) {
-    return (
-      <div className="text-center py-20">
-        <h2 className="text-2xl font-bold text-slate-900 mb-4">需要登录</h2>
-        <p className="text-slate-500 mb-6">请先登录后再发布应用</p>
-        <button onClick={() => navigate('/')} className="text-indigo-600 font-medium hover:underline">
-          返回首页
-        </button>
-      </div>
-    );
-  }
+  // Mock auto-tagging based on content
+  useEffect(() => {
+    if (title || description || htmlCode) {
+      const content = (title + ' ' + description + ' ' + htmlCode).toLowerCase();
+      const newTags = new Set(tags);
+      
+      if (content.includes('游戏') || content.includes('game') || content.includes('canvas')) newTags.add('小游戏');
+      if (content.includes('简历') || content.includes('resume')) newTags.add('简历模板');
+      if (content.includes('ai') || content.includes('智能')) newTags.add('AI 工具');
+      if (content.includes('工具') || content.includes('tool')) newTags.add('效率工具');
+      if (content.includes('表白') || content.includes('love')) newTags.add('表白页');
+      
+      // Keep only up to 5 tags total
+      const tagArray = Array.from(newTags).slice(0, 5);
+      if (tagArray.join(',') !== tags.join(',')) {
+        setTags(tagArray);
+      }
+    }
+  }, [title, description, htmlCode]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (selectedFile.name.endsWith('.html')) {
+        setFile(selectedFile);
+        if (!title) {
+          setTitle(selectedFile.name.replace('.html', ''));
+        }
+        setErrorMsg('');
+      } else {
+        setFile(null);
+        setErrorMsg('仅支持 .html 格式文件');
+      }
+    }
+  };
 
-    if (file.name.endsWith('.html')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setFileContent(e.target?.result as string);
-        setStep(2);
-      };
-      reader.readAsText(file);
+  const handleAddCustomTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && customTag.trim()) {
+      e.preventDefault();
+      if (tags.length >= 5) {
+        setErrorMsg('最多只能添加5个标签');
+        return;
+      }
+      if (!tags.includes(customTag.trim())) {
+        setTags([...tags, customTag.trim()]);
+      }
+      setCustomTag('');
+    }
+  };
+
+  const toggleTag = (tag: string) => {
+    if (tags.includes(tag)) {
+      setTags(tags.filter(t => t !== tag));
     } else {
-      alert('仅支持 .html 文件');
+      if (tags.length >= 5) {
+        setErrorMsg('最多只能添加5个标签');
+        return;
+      }
+      setTags([...tags, tag]);
     }
   };
 
-  const handlePasteSubmit = () => {
-    if (!fileContent.trim()) {
-      alert('请输入 HTML 代码');
-      return;
-    }
-    setStep(2);
-  };
-
-  const handleTagToggle = (tag: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.includes(tag) 
-        ? prev.tags.filter(t => t !== tag)
-        : [...prev.tags, tag].slice(0, 3) // Max 3 tags
-    }));
-  };
-
-  const handleDeploy = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim() || formData.tags.length === 0) {
-      alert('请填写应用名称并至少选择一个标签');
+    if (!currentUser) return;
+
+    if (uploadMethod === 'file' && !file) {
+      setErrorMsg('请选择要上传的 HTML 文件');
+      return;
+    }
+    if (uploadMethod === 'code' && !htmlCode.trim()) {
+      setErrorMsg('请粘贴 HTML 代码');
+      return;
+    }
+    if (!title.trim()) {
+      setErrorMsg('请填写应用名称');
       return;
     }
 
-    setIsDeploying(true);
-    setStep(3);
+    setStatus('uploading');
+    
+    // Simulate upload and deployment
+    setTimeout(async () => {
+      let finalHtmlCode = htmlCode;
+      
+      if (uploadMethod === 'file' && file) {
+        try {
+          finalHtmlCode = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = (e) => reject(e);
+            reader.readAsText(file);
+          });
+        } catch (e) {
+          console.error("Failed to read file", e);
+          setStatus('error');
+          return;
+        }
+      }
 
-    // Mock deployment delay
-    setTimeout(() => {
-      const id = addApp({
-        title: formData.title,
-        description: formData.description,
-        tags: formData.tags,
-        coverUrl: formData.coverUrl || `https://picsum.photos/seed/${Date.now()}/400/300`,
-        authorId: currentUser.id,
-        htmlContent: fileContent
-      });
-      setDeployedId(id);
-      setIsDeploying(false);
-    }, 2000);
+      let finalAppId = id;
+      
+      if (isEditMode && id) {
+        updateApp(id, {
+          title,
+          description,
+          htmlContent: finalHtmlCode,
+          coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(title)}/800/600`,
+          tags: tags.length > 0 ? tags : ['未分类'],
+          visibility,
+          allowDownload,
+          price: allowDownload ? price : 0,
+        });
+      } else {
+        finalAppId = addApp({
+          title,
+          description,
+          authorId: currentUser.id,
+          htmlContent: finalHtmlCode,
+          coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(title)}/800/600`,
+          tags: tags.length > 0 ? tags : ['未分类'],
+          visibility,
+          allowDownload,
+          price: allowDownload ? price : 0,
+        });
+      }
+
+      setStatus('success');
+      setTimeout(() => {
+        navigate(`/app/${finalAppId}`);
+      }, 1500);
+    }, 1500);
   };
+
+  if (!currentUser) return null;
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">发布新应用</h1>
-        <p className="text-slate-500">将你的本地HTML单页一键部署到云端，与世界分享。</p>
-      </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-6 border-b border-slate-200 bg-slate-50">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            {isEditMode ? <Edit className="w-6 h-6 text-indigo-600" /> : <UploadIcon className="w-6 h-6 text-indigo-600" />}
+            {isEditMode ? '编辑应用' : '发布新应用'}
+          </h1>
+          <p className="text-slate-500 mt-1">
+            {isEditMode ? '更新您的应用代码或修改应用信息。' : '上传单页 HTML 文件或直接粘贴代码，一键生成专属在线链接。'}
+          </p>
+        </div>
 
-      {/* Progress Steps */}
-      <div className="flex items-center justify-between mb-12 relative">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-200 -z-10 rounded-full"></div>
-        <div className={cn("absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-indigo-600 -z-10 rounded-full transition-all duration-500", 
-          step === 1 ? "w-0" : step === 2 ? "w-1/2" : "w-full"
-        )}></div>
-        
-        {[
-          { num: 1, label: '上传文件' },
-          { num: 2, label: '填写信息' },
-          { num: 3, label: '完成部署' }
-        ].map((s) => (
-          <div key={s.num} className="flex flex-col items-center gap-2 bg-slate-50 px-2">
-            <div className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors border-2",
-              step >= s.num ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-300 text-slate-400"
-            )}>
-              {step > s.num ? <CheckCircle2 className="w-5 h-5" /> : s.num}
-            </div>
-            <span className={cn("text-sm font-medium", step >= s.num ? "text-slate-900" : "text-slate-400")}>
-              {s.label}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-        {step === 1 && (
-          <div className="space-y-6">
-            <div className="flex gap-4 mb-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-8">
+          {/* Upload Method Selection */}
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-slate-900">代码来源</label>
+            <div className="grid grid-cols-2 gap-4">
               <button
+                type="button"
                 onClick={() => setUploadMethod('file')}
-                className={cn("flex-1 py-3 rounded-xl font-medium transition-colors border", uploadMethod === 'file' ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50")}
+                className={cn(
+                  "flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
+                  uploadMethod === 'file' 
+                    ? "border-indigo-600 bg-indigo-50 text-indigo-700" 
+                    : "border-slate-200 hover:border-indigo-200 hover:bg-slate-50 text-slate-600"
+                )}
               >
-                上传 HTML 文件
+                <FileCode className="w-8 h-8 mb-2" />
+                <span className="font-medium">上传 HTML 文件</span>
               </button>
               <button
-                onClick={() => setUploadMethod('paste')}
-                className={cn("flex-1 py-3 rounded-xl font-medium transition-colors border", uploadMethod === 'paste' ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50")}
+                type="button"
+                onClick={() => setUploadMethod('code')}
+                className={cn(
+                  "flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
+                  uploadMethod === 'code' 
+                    ? "border-indigo-600 bg-indigo-50 text-indigo-700" 
+                    : "border-slate-200 hover:border-indigo-200 hover:bg-slate-50 text-slate-600"
+                )}
               >
-                粘贴 HTML 代码
+                <Code className="w-8 h-8 mb-2" />
+                <span className="font-medium">粘贴 HTML 代码</span>
               </button>
             </div>
+          </div>
 
-            {uploadMethod === 'file' ? (
-              <div className="border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center hover:bg-slate-50 hover:border-indigo-400 transition-colors relative cursor-pointer group">
-                <input 
-                  type="file" 
-                  accept=".html" 
-                  onChange={handleFileSelect}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <div className="flex justify-center mb-4">
-                  <div className="p-4 bg-indigo-50 rounded-full text-indigo-600 group-hover:scale-110 transition-transform">
-                    <UploadIcon className="w-8 h-8" />
-                  </div>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">点击或拖拽文件到此处上传</h3>
-                <p className="text-slate-500 text-sm mb-6">仅支持 .html 单文件 (最大5MB)</p>
-                
-                <div className="flex justify-center gap-8 text-sm text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <FileCode className="w-4 h-4 text-slate-400" /> 单HTML文件
-                  </div>
-                </div>
+          {/* Source Input */}
+          {uploadMethod === 'file' ? (
+            <div 
+              className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center hover:bg-slate-50 transition-colors cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".html"
+                className="hidden"
+              />
+              <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileCode className="w-8 h-8" />
               </div>
-            ) : (
-              <div className="space-y-4">
-                <textarea
-                  value={fileContent}
-                  onChange={(e) => setFileContent(e.target.value)}
-                  placeholder="在此处粘贴你的 HTML 代码 (例如由 AI 生成的代码)..."
-                  className="w-full h-64 p-4 font-mono text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none resize-none bg-slate-50"
-                />
-                <div className="flex justify-end">
-                  <button
-                    onClick={handlePasteSubmit}
-                    className="bg-indigo-600 text-white px-8 py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+              {file ? (
+                <div>
+                  <p className="text-lg font-medium text-slate-900">{file.name}</p>
+                  <p className="text-sm text-slate-500 mt-1">{(file.size / 1024).toFixed(2)} KB</p>
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                    className="mt-4 text-sm text-red-600 hover:underline"
                   >
-                    下一步
+                    重新选择
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 2 && (
-          <form onSubmit={handleDeploy} className="space-y-6">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <div className="flex items-center gap-3">
-                {uploadMethod === 'file' ? <FileCode className="w-6 h-6 text-indigo-600" /> : <Code className="w-6 h-6 text-indigo-600" />}
+              ) : (
                 <div>
-                  <p className="font-medium text-slate-900">{uploadMethod === 'file' ? '已选择文件' : '已输入代码'}</p>
-                  <p className="text-xs text-slate-500">准备部署为静态应用</p>
+                  <p className="text-lg font-medium text-slate-900">点击或拖拽文件到此处</p>
+                  <p className="text-sm text-slate-500 mt-2">仅支持单个 .html 文件</p>
                 </div>
-              </div>
-              <button type="button" onClick={() => setStep(1)} className="text-sm text-indigo-600 hover:underline">重新上传</button>
+              )}
             </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-900">HTML 代码</label>
+              <textarea 
+                value={htmlCode}
+                onChange={(e) => setHtmlCode(e.target.value)}
+                placeholder="<!DOCTYPE html>\n<html>\n<head>\n  <title>My App</title>\n</head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>"
+                className="w-full h-64 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-mono text-sm resize-y"
+              />
+            </div>
+          )}
 
+          {/* App Info */}
+          <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">应用名称 <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-slate-900 mb-1">应用名称 *</label>
               <input 
                 type="text" 
-                required
-                maxLength={30}
-                value={formData.title}
-                onChange={e => setFormData({...formData, title: e.target.value})}
-                className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="给你的应用起个响亮的名字"
+                className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+                required
               />
             </div>
-
+            
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">应用简介</label>
+              <label className="block text-sm font-medium text-slate-900 mb-1">应用简介</label>
               <textarea 
-                maxLength={200}
-                value={formData.description}
-                onChange={e => setFormData({...formData, description: e.target.value})}
-                className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none resize-none h-24"
-                placeholder="简单介绍一下这个应用的功能和特色（选填，限200字）"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="简单介绍一下你的应用功能和特色..."
+                className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none h-24 resize-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">分类标签 <span className="text-red-500">*</span> <span className="text-slate-400 font-normal">(最多选3个)</span></label>
+              <label className="block text-sm font-medium text-slate-900 mb-1 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" /> 封面图 URL (可选)
+              </label>
+              <input 
+                type="url" 
+                value={coverUrl}
+                onChange={(e) => setCoverUrl(e.target.value)}
+                placeholder="输入图片链接，留空则自动生成随机封面"
+                className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+              />
+              {coverUrl && (
+                <div className="mt-2 aspect-video w-48 rounded-lg overflow-hidden border border-slate-200">
+                  <img src={coverUrl} alt="Cover Preview" className="w-full h-full object-cover" onError={() => setErrorMsg('封面图片加载失败，请检查链接')} />
+                </div>
+              )}
+            </div>
+
+            {/* Smart Tags */}
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-2 flex items-center gap-2">
+                <Tag className="w-4 h-4" /> 标签 (最多5个)
+              </label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {tags.map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-sm font-medium">
+                    {tag}
+                    <button type="button" onClick={() => toggleTag(tag)} className="hover:text-indigo-900">×</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2 mb-3">
+                <input 
+                  type="text"
+                  value={customTag}
+                  onChange={(e) => setCustomTag(e.target.value)}
+                  onKeyDown={handleAddCustomTag}
+                  placeholder="输入自定义标签并回车"
+                  className="flex-1 px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none text-sm"
+                />
+              </div>
               <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map(tag => (
+                {PRESET_TAGS.map(tag => (
                   <button
                     key={tag}
                     type="button"
-                    onClick={() => handleTagToggle(tag)}
+                    onClick={() => toggleTag(tag)}
                     className={cn(
-                      "px-4 py-1.5 rounded-full text-sm font-medium transition-colors border",
-                      formData.tags.includes(tag)
-                        ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      "px-3 py-1 rounded-full text-xs font-medium border transition-colors",
+                      tags.includes(tag) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
                     )}
                   >
                     {tag}
@@ -256,91 +367,122 @@ export function Upload() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">封面图 URL</label>
-              <input 
-                type="url" 
-                value={formData.coverUrl}
-                onChange={e => setFormData({...formData, coverUrl: e.target.value})}
-                className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
-                placeholder="输入图片链接，或使用默认随机图片"
-              />
-              <p className="text-xs text-slate-500 mt-1">由于浏览器安全限制，暂不支持自动网页截图，您可以手动填入图片链接。</p>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex justify-end gap-4">
-              <button 
-                type="button" 
-                onClick={() => setStep(1)}
-                className="px-6 py-2 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                上一步
-              </button>
-              <button 
-                type="submit"
-                className="bg-indigo-600 text-white px-8 py-2 rounded-xl font-medium hover:bg-indigo-700 transition-colors"
-              >
-                确认发布
-              </button>
-            </div>
-          </form>
-        )}
-
-        {step === 3 && (
-          <div className="text-center py-12">
-            {isDeploying ? (
-              <div className="flex flex-col items-center space-y-4">
-                <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                <h3 className="text-xl font-bold text-slate-900">正在部署到云端...</h3>
-                <p className="text-slate-500">正在解析文件并分配静态托管资源，请稍候</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center space-y-6">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-2">
-                  <CheckCircle2 className="w-8 h-8" />
+            {/* Publishing Permissions */}
+            <div className="border-t border-slate-200 pt-6 space-y-6">
+              <h3 className="text-lg font-bold text-slate-900">发布设置</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Visibility */}
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-slate-900">可见性</label>
+                  <div className="flex gap-4">
+                    <label className={cn(
+                      "flex-1 flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-colors",
+                      visibility === 'public' ? "border-indigo-600 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"
+                    )}>
+                      <input type="radio" name="visibility" value="public" checked={visibility === 'public'} onChange={() => setVisibility('public')} className="hidden" />
+                      <Unlock className={cn("w-5 h-5", visibility === 'public' ? "text-indigo-600" : "text-slate-400")} />
+                      <div>
+                        <p className={cn("text-sm font-medium", visibility === 'public' ? "text-indigo-900" : "text-slate-700")}>公开</p>
+                        <p className="text-xs text-slate-500">发布到广场</p>
+                      </div>
+                    </label>
+                    <label className={cn(
+                      "flex-1 flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-colors",
+                      visibility === 'private' ? "border-indigo-600 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"
+                    )}>
+                      <input type="radio" name="visibility" value="private" checked={visibility === 'private'} onChange={() => setVisibility('private')} className="hidden" />
+                      <Lock className={cn("w-5 h-5", visibility === 'private' ? "text-indigo-600" : "text-slate-400")} />
+                      <div>
+                        <p className={cn("text-sm font-medium", visibility === 'private' ? "text-indigo-900" : "text-slate-700")}>私有</p>
+                        <p className="text-xs text-slate-500">仅自己可见</p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
-                <h3 className="text-2xl font-bold text-slate-900">部署成功！</h3>
-                
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 w-full max-w-md flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-600 truncate">
-                    <LinkIcon className="w-4 h-4 shrink-0" />
-                    <span className="truncate text-sm font-mono">
-                      {window.location.origin}/#/app/{deployedId}
+
+                {/* Download Permission */}
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-slate-900">源码下载</label>
+                  <div className="flex gap-4">
+                    <label className={cn(
+                      "flex-1 flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-colors",
+                      allowDownload ? "border-indigo-600 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"
+                    )}>
+                      <input type="radio" name="download" checked={allowDownload} onChange={() => setAllowDownload(true)} className="hidden" />
+                      <Download className={cn("w-5 h-5", allowDownload ? "text-indigo-600" : "text-slate-400")} />
+                      <div>
+                        <p className={cn("text-sm font-medium", allowDownload ? "text-indigo-900" : "text-slate-700")}>允许下载</p>
+                      </div>
+                    </label>
+                    <label className={cn(
+                      "flex-1 flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-colors",
+                      !allowDownload ? "border-indigo-600 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"
+                    )}>
+                      <input type="radio" name="download" checked={!allowDownload} onChange={() => { setAllowDownload(false); setPrice(0); }} className="hidden" />
+                      <Lock className={cn("w-5 h-5", !allowDownload ? "text-indigo-600" : "text-slate-400")} />
+                      <div>
+                        <p className={cn("text-sm font-medium", !allowDownload ? "text-indigo-900" : "text-slate-700")}>禁止下载</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price Setting */}
+              {allowDownload && (
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                  <label className="block text-sm font-medium text-amber-900 mb-2 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" /> 下载价格 (元)
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <input 
+                      type="number" 
+                      min="0"
+                      step="0.01"
+                      value={price}
+                      onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
+                      className="w-32 px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                    <span className="text-sm text-amber-700">
+                      {price === 0 ? '免费下载' : `付费下载 (平台将收取 10% 手续费)`}
                     </span>
                   </div>
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/#/app/${deployedId}`);
-                      alert('已复制');
-                    }}
-                    className="text-indigo-600 text-sm font-medium hover:underline shrink-0 ml-4"
-                  >
-                    复制
-                  </button>
                 </div>
-
-                <div className="flex gap-4 pt-4">
-                  <button 
-                    onClick={() => {
-                      setStep(1);
-                      setFileContent('');
-                      setFormData({title: '', description: '', tags: [], coverUrl: ''});
-                    }}
-                    className="px-6 py-2 rounded-xl font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
-                  >
-                    继续发布
-                  </button>
-                  <button 
-                    onClick={() => navigate(`/app/${deployedId}`)}
-                    className="bg-indigo-600 text-white px-8 py-2 rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-                  >
-                    去查看
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        )}
+
+          {/* Error Message */}
+          {errorMsg && (
+            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm">
+              <AlertCircle className="w-4 h-4" />
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <div className="pt-4 border-t border-slate-200">
+            <button
+              type="submit"
+              disabled={status === 'uploading' || status === 'success'}
+              className={cn(
+                "w-full py-3 rounded-xl font-medium text-lg flex items-center justify-center gap-2 transition-all",
+                status === 'success' 
+                  ? "bg-green-500 text-white" 
+                  : "bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+              )}
+            >
+              {status === 'uploading' && <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              {status === 'success' && <CheckCircle className="w-5 h-5" />}
+              {status === 'idle' && <UploadIcon className="w-5 h-5" />}
+              
+              {status === 'uploading' ? '正在部署...' : 
+               status === 'success' ? (isEditMode ? '保存成功！正在跳转...' : '发布成功！正在跳转...') : 
+               (isEditMode ? '保存修改' : '一键发布')}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

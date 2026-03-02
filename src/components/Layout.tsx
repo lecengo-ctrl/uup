@@ -1,13 +1,16 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
-import { Cloud, Upload, User, LogOut, LayoutDashboard, ShieldAlert } from 'lucide-react';
+import { Cloud, Upload, User, LogOut, LayoutDashboard, ShieldAlert, Bell } from 'lucide-react';
 import React, { useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 export function Layout() {
-  const { currentUser, login, logout } = useStore();
+  const { currentUser, login, logout, notifications, markNotificationRead, markAllNotificationsRead } = useStore();
   const navigate = useNavigate();
   const [showLogin, setShowLogin] = useState(false);
   const [phone, setPhone] = useState('');
+  const [showNotifs, setShowNotifs] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,6 +20,9 @@ export function Layout() {
       setPhone('');
     }
   };
+
+  const myNotifs = currentUser ? notifications.filter(n => n.userId === currentUser.id) : [];
+  const unreadCount = myNotifs.filter(n => !n.isRead).length;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -45,6 +51,49 @@ export function Layout() {
                   </Link>
                 )}
                 
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowNotifs(!showNotifs)}
+                    className="text-slate-600 hover:text-indigo-600 p-2 relative"
+                  >
+                    <Bell className="w-5 h-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                    )}
+                  </button>
+                  
+                  {showNotifs && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
+                      <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <h3 className="font-bold text-slate-900">通知中心</h3>
+                        {unreadCount > 0 && (
+                          <button onClick={markAllNotificationsRead} className="text-xs text-indigo-600 hover:underline">
+                            全部已读
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-96 overflow-y-auto">
+                        {myNotifs.length === 0 ? (
+                          <div className="p-4 text-center text-slate-500 text-sm">暂无通知</div>
+                        ) : (
+                          myNotifs.map(n => (
+                            <div 
+                              key={n.id} 
+                              onClick={() => markNotificationRead(n.id)}
+                              className={`p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? 'bg-indigo-50/30' : ''}`}
+                            >
+                              <p className="text-sm text-slate-800 mb-1">{n.content}</p>
+                              <p className="text-xs text-slate-400">
+                                {formatDistanceToNow(n.createdAt, { addSuffix: true, locale: zhCN })}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <Link to="/dashboard" className="text-slate-600 hover:text-indigo-600 p-2">
                   <LayoutDashboard className="w-5 h-5" />
                 </Link>
@@ -56,7 +105,7 @@ export function Layout() {
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 py-1 hidden group-hover:block">
                     <div className="px-4 py-2 border-b border-slate-100">
                       <p className="text-sm font-medium text-slate-900 truncate">{currentUser.nickname}</p>
-                      <p className="text-xs text-slate-500 truncate">{currentUser.role === 'admin' ? '管理员' : '创作者'}</p>
+                      <p className="text-xs text-slate-500 truncate">Lv.{currentUser.level} {currentUser.role === 'admin' ? '管理员' : '创作者'}</p>
                     </div>
                     <button 
                       onClick={() => { logout(); navigate('/'); }}
