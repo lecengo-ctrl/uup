@@ -37,20 +37,20 @@ export function Upload() {
 
   useEffect(() => {
     if (!currentUser) {
-      navigate('/');
+      navigate('/login');
     } else if (isEditMode && existingApp) {
-      if (existingApp.authorId !== currentUser.id) {
+      if (existingApp.user_id !== currentUser.id) {
         navigate('/'); // Not the author
         return;
       }
       setUploadMethod('code');
-      setHtmlCode(existingApp.htmlContent || '');
+      setHtmlCode(existingApp.html_content || '');
       setTitle(existingApp.title);
       setDescription(existingApp.description);
-      setCoverUrl(existingApp.coverUrl);
+      setCoverUrl(existingApp.cover_url);
       setTags(existingApp.tags || []);
       setVisibility(existingApp.visibility || 'public');
-      setAllowDownload(existingApp.allowDownload || false);
+      setAllowDownload(existingApp.allow_download || false);
       setPrice(existingApp.price || 0);
     }
   }, [currentUser, navigate, isEditMode, existingApp]);
@@ -136,48 +136,40 @@ export function Upload() {
 
     setStatus('uploading');
     
-    // Simulate upload and deployment
-    setTimeout(async () => {
+    try {
       let finalHtmlCode = htmlCode;
       
       if (uploadMethod === 'file' && file) {
-        try {
-          finalHtmlCode = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target?.result as string);
-            reader.onerror = (e) => reject(e);
-            reader.readAsText(file);
-          });
-        } catch (e) {
-          console.error("Failed to read file", e);
-          setStatus('error');
-          return;
-        }
+        finalHtmlCode = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = (e) => reject(e);
+          reader.readAsText(file);
+        });
       }
 
       let finalAppId = id;
       
       if (isEditMode && id) {
-        updateApp(id, {
+        await updateApp(id, {
           title,
           description,
-          htmlContent: finalHtmlCode,
-          coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(title)}/800/600`,
+          html_content: finalHtmlCode,
+          cover_url: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(title)}/800/600`,
           tags: tags.length > 0 ? tags : ['未分类'],
           visibility,
-          allowDownload,
+          allow_download: allowDownload,
           price: allowDownload ? price : 0,
         });
       } else {
-        finalAppId = addApp({
+        finalAppId = await addApp({
           title,
           description,
-          authorId: currentUser.id,
-          htmlContent: finalHtmlCode,
-          coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(title)}/800/600`,
+          html_content: finalHtmlCode,
+          cover_url: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(title)}/800/600`,
           tags: tags.length > 0 ? tags : ['未分类'],
           visibility,
-          allowDownload,
+          allow_download: allowDownload,
           price: allowDownload ? price : 0,
         });
       }
@@ -186,7 +178,11 @@ export function Upload() {
       setTimeout(() => {
         navigate(`/app/${finalAppId}`);
       }, 1500);
-    }, 1500);
+    } catch (e) {
+      console.error("Failed to upload/update app", e);
+      setErrorMsg('操作失败，请重试');
+      setStatus('error');
+    }
   };
 
   if (!currentUser) return null;

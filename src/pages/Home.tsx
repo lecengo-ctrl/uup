@@ -1,50 +1,33 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { Eye, Search, Filter, Download, ShoppingCart, Award } from 'lucide-react';
+import { Eye, Search, Award, Download, ShoppingCart } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const CATEGORIES = ['全部', '效率工具', '小游戏', '简历模板', '表白页', 'AI 工具', '毕业设计', '办公助手'];
 
 export function Home() {
-  const { apps, users } = useStore();
+  const { apps, fetchApps } = useStore();
   const [activeCategory, setActiveCategory] = useState('全部');
   const [sortBy, setSortBy] = useState<'heat' | 'latest' | 'recognition' | 'revenue'>('heat');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredApps = useMemo(() => {
-    return apps
-      .filter(app => app.status === 'online' && app.visibility === 'public')
-      .filter(app => activeCategory === '全部' || app.tags.includes(activeCategory))
-      .filter(app => {
-        if (!searchQuery.trim()) return true;
-        const query = searchQuery.toLowerCase();
-        const author = users[app.authorId];
-        return (
-          app.title.toLowerCase().includes(query) ||
-          app.description.toLowerCase().includes(query) ||
-          app.tags.some(t => t.toLowerCase().includes(query)) ||
-          (author && author.nickname.toLowerCase().includes(query))
-        );
-      })
-      .sort((a, b) => {
-        if (sortBy === 'latest') return b.createdAt - a.createdAt;
-        if (sortBy === 'recognition') {
-          const recA = (a.recognitions?.creative || 0) + (a.recognitions?.professional || 0) + (a.recognitions?.beautiful || 0);
-          const recB = (b.recognitions?.creative || 0) + (b.recognitions?.professional || 0) + (b.recognitions?.beautiful || 0);
-          return recB - recA;
-        }
-        if (sortBy === 'revenue') {
-          return (b.purchases * b.price) - (a.purchases * a.price);
-        }
-        // heat
-        const heatA = a.views + ((a.recognitions?.creative || 0) + (a.recognitions?.professional || 0) + (a.recognitions?.beautiful || 0)) * 2 + a.downloads * 3 + a.purchases * 5;
-        const heatB = b.views + ((b.recognitions?.creative || 0) + (b.recognitions?.professional || 0) + (b.recognitions?.beautiful || 0)) * 2 + b.downloads * 3 + b.purchases * 5;
-        return heatB - heatA;
-      });
-  }, [apps, activeCategory, sortBy, searchQuery, users]);
+  useEffect(() => {
+    fetchApps({ category: activeCategory, sort: sortBy });
+  }, [activeCategory, sortBy, fetchApps]);
+
+  const filteredApps = apps.filter(app => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      app.title.toLowerCase().includes(query) ||
+      app.description.toLowerCase().includes(query) ||
+      app.tags.some(t => t.toLowerCase().includes(query)) ||
+      (app.profiles?.nickname.toLowerCase().includes(query))
+    );
+  });
 
   return (
     <div className="space-y-8">
@@ -118,14 +101,14 @@ export function Home() {
       {/* App Grid */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredApps.map(app => {
-          const author = users[app.authorId];
+          const author = app.profiles;
           const totalRec = (app.recognitions?.creative || 0) + (app.recognitions?.professional || 0) + (app.recognitions?.beautiful || 0);
           
           return (
             <Link key={app.id} to={`/app/${app.id}`} className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-xl hover:border-indigo-200 transition-all duration-300">
               <div className="aspect-video w-full bg-slate-100 relative overflow-hidden">
                 <img 
-                  src={app.coverUrl} 
+                  src={app.cover_url} 
                   alt={app.title} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   referrerPolicy="no-referrer"
@@ -164,7 +147,7 @@ export function Home() {
                     <span className="flex items-center gap-1" title="认可数">
                       <Award className="w-3.5 h-3.5" /> {totalRec}
                     </span>
-                    {app.allowDownload && (
+                    {app.allow_download && (
                       <span className="flex items-center gap-1" title={app.price > 0 ? "购买量" : "下载量"}>
                         {app.price > 0 ? <ShoppingCart className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
                         {app.price > 0 ? app.purchases : app.downloads}

@@ -14,15 +14,12 @@ export function Layout() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.length >= 4) {
-      login(phone, phone === 'admin' ? 'admin' : 'user');
-      setShowLogin(false);
-      setPhone('');
-    }
+    navigate('/login');
+    setShowLogin(false);
   };
 
-  const myNotifs = currentUser ? notifications.filter(n => n.userId === currentUser.id) : [];
-  const unreadCount = myNotifs.filter(n => !n.isRead).length;
+  const myNotifs = notifications;
+  const unreadCount = myNotifs.filter(n => !n.is_read).length;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -80,11 +77,11 @@ export function Layout() {
                             <div 
                               key={n.id} 
                               onClick={() => markNotificationRead(n.id)}
-                              className={`p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? 'bg-indigo-50/30' : ''}`}
+                              className={`p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors ${!n.is_read ? 'bg-indigo-50/30' : ''}`}
                             >
                               <p className="text-sm text-slate-800 mb-1">{n.content}</p>
                               <p className="text-xs text-slate-400">
-                                {formatDistanceToNow(n.createdAt, { addSuffix: true, locale: zhCN })}
+                                {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: zhCN })}
                               </p>
                             </div>
                           ))
@@ -140,28 +137,14 @@ export function Layout() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
             <h2 className="text-2xl font-bold text-slate-900 mb-2">欢迎来到轻页云</h2>
-            <p className="text-slate-500 mb-6">输入手机号快速登录或注册 (MVP演示: 输入任意4位以上字符，输入admin登录管理员)</p>
+            <p className="text-slate-500 mb-6">登录后即可发布、收藏应用，并管理您的收益。</p>
             
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">手机号</label>
-                <input 
-                  type="text" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
-                  placeholder="请输入手机号"
-                  autoFocus
-                />
-              </div>
-              <button 
-                type="submit"
-                disabled={phone.length < 4}
-                className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                获取验证码并登录
-              </button>
-            </form>
+            <button 
+              onClick={() => { navigate('/login'); setShowLogin(false); }}
+              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+            >
+              去登录 / 注册
+            </button>
             
             <button 
               onClick={() => setShowLogin(false)}

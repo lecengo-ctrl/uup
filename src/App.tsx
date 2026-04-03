@@ -1,4 +1,5 @@
-import { HashRouter, Routes, Route } from "react-router-dom";
+import React, { useEffect } from "react";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Home } from "./pages/Home";
 import { AppDetail } from "./pages/AppDetail";
@@ -6,10 +7,21 @@ import { Upload } from "./pages/Upload";
 import { Dashboard } from "./pages/Dashboard";
 import { Admin } from "./pages/Admin";
 import { Preview } from "./pages/Preview";
+import { Login } from "./pages/Login";
 import { useStore } from "./store";
 
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { currentUser } = useStore();
+  if (!currentUser) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
-  const { _hasHydrated } = useStore();
+  const { _hasHydrated, init } = useStore();
+
+  useEffect(() => {
+    init();
+  }, [init]);
 
   if (!_hasHydrated) {
     return (
@@ -26,13 +38,14 @@ export default function App() {
     <HashRouter>
       <Routes>
         <Route path="/preview/:id" element={<Preview />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="app/:id" element={<AppDetail />} />
-          <Route path="upload" element={<Upload />} />
-          <Route path="edit/:id" element={<Upload />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="admin" element={<Admin />} />
+          <Route path="upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+          <Route path="edit/:id" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+          <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
         </Route>
       </Routes>
     </HashRouter>

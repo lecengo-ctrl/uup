@@ -7,7 +7,7 @@ import { Eye, Heart, Edit, Trash2, ExternalLink, Settings, LayoutGrid, Bookmark,
 import { cn } from '../lib/utils';
 
 export function Dashboard() {
-  const { currentUser, apps, deleteApp, toggleBookmark, transactions, withdraw, bookmarks } = useStore();
+  const { currentUser, apps, fetchApps, deleteApp, toggleBookmark, transactions, withdraw, bookmarks } = useStore();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'apps' | 'bookmarks' | 'revenue' | 'settings'>('apps');
   const [withdrawAmount, setWithdrawAmount] = useState<number>(0);
@@ -24,16 +24,16 @@ export function Dashboard() {
       <div className="text-center py-20">
         <h2 className="text-2xl font-bold text-slate-900 mb-4">需要登录</h2>
         <p className="text-slate-500 mb-6">请先登录后查看个人中心</p>
-        <button onClick={() => navigate('/')} className="text-indigo-600 font-medium hover:underline">
-          返回首页
+        <button onClick={() => navigate('/login')} className="text-indigo-600 font-medium hover:underline">
+          去登录
         </button>
       </div>
     );
   }
 
-  const myApps = apps.filter(app => app.authorId === currentUser.id).sort((a, b) => b.createdAt - a.createdAt);
-  const myBookmarks = apps.filter(app => (bookmarks[currentUser.id] || []).includes(app.id));
-  const myTransactions = transactions.filter(t => t.userId === currentUser.id).sort((a, b) => b.createdAt - a.createdAt);
+  const myApps = apps.filter(app => app.user_id === currentUser.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const myBookmarks = apps.filter(app => bookmarks.includes(app.id));
+  const myTransactions = transactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const handleDelete = (id: string, title: string) => {
     setAppToDelete({ id, title });
@@ -164,7 +164,7 @@ export function Dashboard() {
                   const totalRec = (app.recognitions?.creative || 0) + (app.recognitions?.professional || 0) + (app.recognitions?.beautiful || 0);
                   return (
                     <div key={app.id} className="flex flex-col sm:flex-row gap-4 p-4 border border-slate-200 rounded-xl hover:border-indigo-200 transition-colors group">
-                      <img src={app.coverUrl} alt={app.title} className="w-full sm:w-32 aspect-video object-cover rounded-lg bg-slate-100" />
+                      <img src={app.cover_url} alt={app.title} className="w-full sm:w-32 aspect-video object-cover rounded-lg bg-slate-100" />
                       
                       <div className="flex-1 flex flex-col justify-between">
                         <div>
@@ -188,11 +188,11 @@ export function Dashboard() {
                           </div>
                           <p className="text-sm text-slate-500 line-clamp-1 mb-2">{app.description}</p>
                           <div className="flex items-center gap-3 text-xs text-slate-400">
-                            <span>{formatDistanceToNow(app.createdAt, { addSuffix: true, locale: zhCN })}</span>
-                            <span className="flex items-center gap-1" title="浏览"><Eye className="w-3.5 h-3.5" /> {app.views}</span>
-                            <span className="flex items-center gap-1" title="认可"><Award className="w-3.5 h-3.5" /> {totalRec}</span>
-                            {app.allowDownload && (
-                              <span className="flex items-center gap-1" title={app.price > 0 ? "购买" : "下载"}>
+                            <span>{formatDistanceToNow(new Date(app.created_at), { addSuffix: true, locale: zhCN })}</span>
+                            <span className="flex items-center gap-1" title="浏览量"><Eye className="w-3.5 h-3.5" /> {app.views}</span>
+                            <span className="flex items-center gap-1" title="认可数"><Award className="w-3.5 h-3.5" /> {totalRec}</span>
+                            {app.allow_download && (
+                              <span className="flex items-center gap-1" title={app.price > 0 ? "购买量" : "下载量"}>
                                 {app.price > 0 ? <ShoppingCart className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />} 
                                 {app.price > 0 ? app.purchases : app.downloads}
                               </span>
@@ -237,7 +237,7 @@ export function Dashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {myBookmarks.map(app => (
                   <div key={app.id} className="group flex flex-col bg-slate-50 rounded-xl overflow-hidden border border-slate-200 hover:border-indigo-200 transition-all relative">
-                    <img src={app.coverUrl} alt={app.title} className="w-full aspect-video object-cover" />
+                    <img src={app.cover_url} alt={app.title} className="w-full aspect-video object-cover" />
                     <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-bold text-slate-900 line-clamp-1 group-hover:text-indigo-600 mb-1">{app.title}</h3>
                       <p className="text-xs text-slate-500 line-clamp-2 mb-4">{app.description}</p>
@@ -322,7 +322,7 @@ export function Dashboard() {
                         </div>
                         <div>
                           <p className="font-medium text-slate-900">{t.description}</p>
-                          <p className="text-xs text-slate-500">{formatDistanceToNow(t.createdAt, { addSuffix: true, locale: zhCN })}</p>
+                          <p className="text-xs text-slate-500">{formatDistanceToNow(new Date(t.created_at), { addSuffix: true, locale: zhCN })}</p>
                         </div>
                       </div>
                       <div className="text-right">

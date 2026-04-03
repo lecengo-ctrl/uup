@@ -7,7 +7,7 @@ import { ShieldAlert, Users, LayoutGrid, Activity, Search, Ban, CheckCircle, XCi
 import { cn } from '../lib/utils';
 
 export function Admin() {
-  const { currentUser, apps, users, updateApp } = useStore();
+  const { currentUser, apps, updateApp } = useStore();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'apps' | 'users'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,7 +114,7 @@ export function Admin() {
             </div>
             <div>
               <p className="text-sm text-slate-500 font-medium mb-1">总注册用户</p>
-              <h3 className="text-3xl font-bold text-slate-900">{Object.keys(users).length}</h3>
+              <h3 className="text-3xl font-bold text-slate-900">-</h3>
             </div>
           </div>
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
@@ -168,12 +168,11 @@ export function Admin() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredApps.map(app => {
-                  const author = users[app.authorId];
                   return (
                     <tr key={app.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <img src={app.coverUrl} alt="" className="w-12 h-12 rounded bg-slate-100 object-cover" />
+                          <img src={app.cover_url} alt="" className="w-12 h-12 rounded bg-slate-100 object-cover" />
                           <div>
                             <Link to={`/app/${app.id}`} className="font-medium text-slate-900 hover:text-indigo-600">{app.title}</Link>
                             <p className="text-xs text-slate-500 mt-0.5">ID: {app.id}</p>
@@ -182,8 +181,8 @@ export function Admin() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <img src={author?.avatar} alt="" className="w-6 h-6 rounded-full" />
-                          <span className="text-slate-700">{author?.nickname}</span>
+                          <img src={app.profiles?.avatar} alt="" className="w-6 h-6 rounded-full" />
+                          <span className="text-slate-700">{app.profiles?.nickname}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-slate-500">

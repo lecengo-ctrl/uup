@@ -4,21 +4,17 @@ import { useStore } from "../store";
 
 export function Preview() {
   const { id } = useParams<{ id: string }>();
-  const { apps } = useStore();
-  const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const { currentApp, fetchAppDetail } = useStore();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const app = apps.find((a) => a.id === id);
-    if (app) {
-      setHtmlContent(app.htmlContent);
-    } else {
-      setHtmlContent(
-        "<!DOCTYPE html><html><head><style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#f8fafc;color:#64748b;font-family:sans-serif;}</style></head><body><h1>404 - App Not Found</h1></body></html>",
-      );
+    if (id) {
+      setLoading(true);
+      fetchAppDetail(id).finally(() => setLoading(false));
     }
-  }, [id, apps]);
+  }, [id, fetchAppDetail]);
 
-  if (htmlContent === null) {
+  if (loading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-slate-50 text-slate-500">
         <div className="animate-pulse flex flex-col items-center">
@@ -29,11 +25,20 @@ export function Preview() {
     );
   }
 
-  // Inject the raw HTML content directly into the document
-  // This is a simplified mock for MVP. In a real app, this would be served from a static URL (OSS).
+  if (!currentApp) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-slate-50 text-slate-500">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">404 - App Not Found</h1>
+          <p>应用不存在或已下架</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <iframe
-      srcDoc={htmlContent}
+      srcDoc={currentApp.html_content}
       className="w-full h-screen border-0"
       sandbox="allow-scripts allow-same-origin"
       title="Preview"
