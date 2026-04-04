@@ -23,7 +23,7 @@ export default async function handler(req: Request) {
         .from('profiles')
         .insert([{
           id: user.id,
-          phone: user.phone || user.email,
+          email: user.email || user.phone,
           nickname: `User_${user.id.slice(-4)}`,
           avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
           role: 'user',

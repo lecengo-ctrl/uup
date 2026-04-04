@@ -2,12 +2,12 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { motion } from "motion/react";
-import { Phone, ShieldCheck, ArrowRight } from "lucide-react";
+import { Mail, ShieldCheck, ArrowRight } from "lucide-react";
 
 export function Login() {
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -15,14 +15,14 @@ export function Login() {
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || phone.length !== 11) {
-      setError("请输入正确的11位手机号");
+    if (!email || !email.includes("@")) {
+      setError("请输入正确的邮箱地址");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      await login(phone);
+      await login(email);
       setStep("code");
     } catch (err: any) {
       setError(err.message || "发送验证码失败");
@@ -40,7 +40,7 @@ export function Login() {
     setLoading(true);
     setError("");
     try {
-      await verifyOtp(phone, code);
+      await verifyOtp(email, code);
       navigate("/dashboard");
     } catch (err: any) {
       setError(err.message || "验证失败");
@@ -67,21 +67,21 @@ export function Login() {
           </div>
         )}
 
-        {step === "phone" ? (
+        {step === "email" ? (
           <form onSubmit={handleSendCode} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                手机号码
+                邮箱地址
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-slate-400" />
+                  <Mail className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="请输入手机号"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="请输入邮箱"
                   className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
                 />
               </div>
@@ -114,7 +114,7 @@ export function Login() {
                 />
               </div>
               <p className="mt-2 text-xs text-slate-400">
-                验证码已发送至 {phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
+                验证码已发送至 {email}
               </p>
             </div>
             <button
@@ -127,10 +127,10 @@ export function Login() {
             </button>
             <button
               type="button"
-              onClick={() => setStep("phone")}
+              onClick={() => setStep("email")}
               className="w-full text-sm text-slate-500 hover:text-slate-700 transition-colors"
             >
-              返回修改手机号
+              返回修改邮箱
             </button>
           </form>
         )}

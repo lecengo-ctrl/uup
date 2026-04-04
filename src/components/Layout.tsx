@@ -9,7 +9,6 @@ export function Layout() {
   const { currentUser, login, logout, notifications, markNotificationRead, markAllNotificationsRead } = useStore();
   const navigate = useNavigate();
   const [showLogin, setShowLogin] = useState(false);
-  const [phone, setPhone] = useState('');
   const [showNotifs, setShowNotifs] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {

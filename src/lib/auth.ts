@@ -1,23 +1,23 @@
 import { supabase } from './supabase';
 import { syncLocalData } from './sync';
 
-export async function login(phone: string) {
+export async function login(email: string) {
   // Simplified login: use Supabase's OTP or just a mock for now
   // In a real app, we'd use `signInWithOtp` or similar.
   // For this project, we'll use a simplified version.
   const { data, error } = await supabase.auth.signInWithOtp({
-    phone: `+86${phone}`,
+    email,
   });
 
   if (error) throw error;
   return data;
 }
 
-export async function verifyOtp(phone: string, token: string) {
+export async function verifyOtp(email: string, token: string) {
   const { data, error } = await supabase.auth.verifyOtp({
-    phone: `+86${phone}`,
+    email,
     token,
-    type: 'sms',
+    type: 'email',
   });
 
   if (error) throw error;

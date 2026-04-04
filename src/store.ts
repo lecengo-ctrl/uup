@@ -26,8 +26,8 @@ interface StoreState {
 
   setHasHydrated: (state: boolean) => void;
   init: () => Promise<void>;
-  login: (phone: string) => Promise<void>;
-  verifyOtp: (phone: string, token: string) => Promise<void>;
+  login: (email: string) => Promise<void>;
+  verifyOtp: (email: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchApps: (params?: any) => Promise<void>;
   fetchAppDetail: (id: string) => Promise<void>;
@@ -82,16 +82,16 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ _hasHydrated: true });
   },
 
-  login: async (phone) => {
-    const { error } = await supabase.auth.signInWithOtp({ phone: `+86${phone}` });
+  login: async (email) => {
+    const { error } = await supabase.auth.signInWithOtp({ email });
     if (error) throw error;
   },
 
-  verifyOtp: async (phone, token) => {
+  verifyOtp: async (email, token) => {
     const { error } = await supabase.auth.verifyOtp({
-      phone: `+86${phone}`,
+      email,
       token,
-      type: 'sms',
+      type: 'email',
     });
     if (error) throw error;
     
