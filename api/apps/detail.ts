@@ -16,7 +16,7 @@ export default async function handler(req: Request) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('apps')
-      .select('*, profiles(nickname, avatar)')
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -25,6 +25,19 @@ export default async function handler(req: Request) {
         status: 404,
         headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
       });
+    }
+
+    // Fetch profile manually
+    if (data && data.user_id) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('nickname, avatar')
+        .eq('id', data.user_id)
+        .single();
+        
+      if (profileData) {
+        data.profiles = profileData;
+      }
     }
 
     // Increment views if it's a GET request

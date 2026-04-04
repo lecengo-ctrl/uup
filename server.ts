@@ -30,19 +30,42 @@ async function startServer() {
   app.use(express.json());
 
   // Health check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', env: {
-      SUPABASE_URL: !!process.env.SUPABASE_URL || !!process.env.VITE_SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY || !!process.env.SUPABASE_ANON_KEY || !!process.env.VITE_SUPABASE_ANON_KEY
-    }});
+  app.get('/api/health', async (req, res) => {
+    let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    let connectivity = 'unknown';
+    
+    if (supabaseUrl) {
+      // Fix common mistake where .com is used instead of .co
+      if (supabaseUrl.endsWith('.supabase.com')) {
+        supabaseUrl = supabaseUrl.replace('.supabase.com', '.supabase.co');
+      }
+      try {
+        const response = await fetch(supabaseUrl, { method: 'HEAD' });
+        connectivity = response.ok ? 'ok' : `error: ${response.status}`;
+      } catch (err: any) {
+        connectivity = `failed: ${err.message}`;
+      }
+    }
+
+    res.json({ 
+      status: 'ok', 
+      supabase: {
+        configured: !!supabaseUrl,
+        connectivity
+      },
+      env: {
+        SUPABASE_URL: !!process.env.SUPABASE_URL || !!process.env.VITE_SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY || !!process.env.SUPABASE_ANON_KEY || !!process.env.VITE_SUPABASE_ANON_KEY
+      }
+    });
   });
 
   // Helper to convert Vercel handler to Express handler
   const vercelToExpress = (handler: any) => async (req: express.Request, res: express.Response) => {
     try {
       // Create a Request object from Express request
-      // Use localhost for internal routing to avoid external network issues
-      const url = `http://localhost:3000${req.originalUrl}`;
+      // Use 127.0.0.1 for internal routing to avoid IPv6/IPv4 resolution issues
+      const url = `http://127.0.0.1:3000${req.originalUrl}`;
       
       // Filter out headers that might cause issues with the Request constructor
       const safeHeaders = new Headers();
@@ -86,6 +109,11 @@ async function startServer() {
   };
 
   // API Routes
+  app.use('/api', (req, res, next) => {
+    console.log(`[API Request] ${req.method} ${req.originalUrl}`);
+    next();
+  });
+
   app.all('/api/apps', vercelToExpress(appsHandler));
   app.all('/api/apps/detail', vercelToExpress(appDetailHandler));
   app.all('/api/config', vercelToExpress(configHandler));

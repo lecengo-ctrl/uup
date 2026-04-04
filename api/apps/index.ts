@@ -17,7 +17,7 @@ export default async function handler(req: Request) {
 
     let query = supabase
       .from('apps')
-      .select('*, profiles(nickname, avatar)');
+      .select('*');
 
     // Visibility filtering
     if (authorId) {
@@ -49,10 +49,38 @@ export default async function handler(req: Request) {
     const { data, error } = await query;
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('[API /apps GET] Supabase error:', error);
+      return new Response(JSON.stringify({ error: `Supabase GET error: ${error.message}` }), {
         status: 500,
         headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
       });
+    }
+
+    // Fetch profiles manually
+    if (data && data.length > 0) {
+      const userIds = [...new Set(data.map((item: any) => item.user_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, nickname, avatar')
+          .in('id', userIds);
+        
+        if (profilesData) {
+          const profileMap = profilesData.reduce((acc: any, profile: any) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {});
+          
+          data.forEach((item: any) => {
+            if (item.user_id && profileMap[item.user_id]) {
+              item.profiles = {
+                nickname: profileMap[item.user_id].nickname,
+                avatar: profileMap[item.user_id].avatar
+              };
+            }
+          });
+        }
+      }
     }
 
     return new Response(JSON.stringify(data), {
@@ -72,7 +100,8 @@ export default async function handler(req: Request) {
       .single();
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('[API /apps POST] Supabase error:', error);
+      return new Response(JSON.stringify({ error: `Supabase POST error: ${error.message}` }), {
         status: 500,
         headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
       });

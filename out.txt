@@ -1,0 +1,2 @@
+Status: 500
+Body start: {"error":"Supabase GET error: Could not find a rel
