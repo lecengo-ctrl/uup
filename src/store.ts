@@ -26,6 +26,8 @@ interface StoreState {
 
   setHasHydrated: (state: boolean) => void;
   init: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   login: (email: string) => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -80,6 +82,17 @@ export const useStore = create<StoreState>((set, get) => ({
     
     await get().fetchApps();
     set({ _hasHydrated: true });
+  },
+
+  signIn: async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    await get().init();
+  },
+
+  signUp: async (email, password) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
   },
 
   login: async (email) => {
